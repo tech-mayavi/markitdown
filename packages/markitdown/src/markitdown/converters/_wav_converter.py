@@ -1,6 +1,9 @@
+import logging
 from typing import Union
 from ._base import DocumentConverter, DocumentConverterResult
 from ._media_converter import MediaConverter
+
+logger = logging.getLogger(__name__)
 
 # Optional Transcription support
 IS_AUDIO_TRANSCRIPTION_CAPABLE = False
@@ -82,13 +85,18 @@ class WavConverter(MediaConverter):
         )
 
     def _transcribe_with_whisper(self, local_path: str, client) -> str:
-        """Transcribe audio using OpenAI's Whisper model."""
-        with open(local_path, "rb") as audio_file:
-            transcription = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file
-            )
-            return transcription.text.strip()
+        """Transcribe audio using OpenAI's Whisper model, falling back to speech_recognition if it fails."""
+        try:
+            with open(local_path, "rb") as audio_file:
+                transcription = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+                return transcription.text.strip()
+        except Exception as e:
+            logger.warning(f"Whisper transcription attempt failed: {str(e)}")
+            logger.info("Falling back to speech_recognition...")
+            return self._transcribe_audio(local_path)
 
     def _transcribe_audio(self, local_path) -> str:
         recognizer = sr.Recognizer()
